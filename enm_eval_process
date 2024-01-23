@@ -1,0 +1,387 @@
+##This code takes enmeval results and weights each model by tss, then calculates model fit stats and variable importance averages
+
+enmeval_results<-ENMevaluate(occs=occ,envs=env,tune.args = tune.args,partitions = "checkerboard2",n.bg = 2000,algorithm = "maxent.jar")
+
+saveRDS(enmeval_results, file = "D:/Dropbox/UofA/gators/enmeval/cc_enmeval.rds")
+enmeval_results<-readRDS(file = "D:/Dropbox/UofA/gators/enmeval/am_enmeval.rds")
+
+##Separating occurrence and background points by checkerboard2 grouping
+grp<-cbind(enmeval_results@occs,enmeval_results@occs.grp)
+grp_bg<-cbind(enmeval_results@bg,enmeval_results@bg.grp)
+
+##pts is a table of all occurrence and background values to be used as threshold values
+pts<-rbind(enmeval_results@occs,enmeval_results@bg)
+pts<-data.frame(long=pts$long,lat=pts$lat)
+
+##make the table for model tss values
+mod.tss<-data.frame(model=1:tot.mod)
+
+##Function for calculating true skill statistic 
+tss.calc<-function(pts,threshold.n,nrep){
+  threshold<-pts$pr[[threshold.n]]
+  t0<-base::nrow(test1[test1$pr<threshold, ])
+  t1<-base::nrow(test1[test1$pr>threshold, ])
+  bg.0<-base::nrow(bg1[bg1$pr<threshold, ])
+  bg.1<-base::nrow(bg1[bg1$pr>threshold, ])
+  sensitivity<-t1/(t1+t0)
+  specificity<-bg.0/(bg.1+bg.0)
+  tss<-sensitivity+specificity-1
+  pts$tss[[threshold.n]]<-tss
+  pts$tss<-as.numeric(pts$tss)
+  max_tss<-max(pts$tss)
+  tss.values$tss[nrep]<<-max_tss
+  threshold.n<-threshold.n+1
+  if (threshold.n<=nrow(pts)) tss.calc(pts,threshold.n,nrep)
+  else pts<<-pts
+}
+
+##Loops tss calculation for all models, picks the best tss and threshold value for each and spits them out in the table mod.tss
+all.tss<-function(grp,grp_bg,n.mod,tot.mod){
+  occs1<-subset(grp,`enmeval_results@occs.grp`==1)
+  test1<-data.frame("long"=occs1$long,"lat"=occs1$lat)
+  test_pr<-raster::extract(enmeval_results@predictions[[n.mod]],test1)
+  test1<-cbind(test1,test_pr)
+  test1<-data.frame(long=test1$long,lat=test1$lat,pr=test1$test_pr)
+  bg1<-subset(grp_bg,`enmeval_results@bg.grp`==1)
+  bg1<-data.frame("long"=bg1$long,"lat"=bg1$lat)
+  bg_pr<-raster::extract(enmeval_results@predictions[[n.mod]],bg1)
+  bg1<-cbind(bg1,bg_pr)
+  bg1<-data.frame(long=bg1$long,lat=bg1$lat,pr=bg1$bg_pr)
+
+  occs2<-subset(grp,`enmeval_results@occs.grp`==2)
+  test2<-data.frame("long"=occs2$long,"lat"=occs2$lat)
+  test_pr<-raster::extract(enmeval_results@predictions[[n.mod]],test2)
+  test2<-cbind(test2,test_pr)
+  test2<-data.frame(long=test2$long,lat=test2$lat,pr=test2$test_pr)
+  bg2<-subset(grp_bg,`enmeval_results@bg.grp`==2)
+  bg2<-data.frame("long"=bg2$long,"lat"=bg2$lat)
+  bg_pr<-raster::extract(enmeval_results@predictions[[n.mod]],bg2)
+  bg2<-cbind(bg2,bg_pr)
+  bg2<-data.frame(long=bg2$long,lat=bg2$lat,pr=bg2$bg_pr)
+
+  occs3<-subset(grp,`enmeval_results@occs.grp`==3)
+  test3<-data.frame("long"=occs3$long,"lat"=occs3$lat)
+  test_pr<-raster::extract(enmeval_results@predictions[[n.mod]],test3)
+  test3<-cbind(test3,test_pr)
+  test3<-data.frame(long=test3$long,lat=test3$lat,pr=test3$test_pr)
+  bg3<-subset(grp_bg,`enmeval_results@bg.grp`==3)
+  bg3<-data.frame("long"=bg3$long,"lat"=bg3$lat)
+  bg_pr<-raster::extract(enmeval_results@predictions[[n.mod]],bg3)
+  bg3<-cbind(bg3,bg_pr)
+  bg3<-data.frame(long=bg3$long,lat=bg3$lat,pr=bg3$bg_pr)
+
+  occs4<-subset(grp,`enmeval_results@occs.grp`==4)
+  test4<-data.frame("long"=occs4$long,"lat"=occs4$lat)
+  test_pr<-raster::extract(enmeval_results@predictions[[n.mod]],test4)
+  test4<-cbind(test4,test_pr)
+  test4<-data.frame(long=test4$long,lat=test4$lat,pr=test4$test_pr)
+  bg4<-subset(grp_bg,`enmeval_results@bg.grp`==4)
+  bg4<-data.frame("long"=bg4$long,"lat"=bg4$lat)
+  bg_pr<-raster::extract(enmeval_results@predictions[[n.mod]],bg4)
+  bg4<-cbind(bg4,bg_pr)
+  bg4<-data.frame(long=bg4$long,lat=bg4$lat,pr=bg4$bg_pr)
+
+  points1<-rbind(test1,bg1)
+  points2<-rbind(test2,bg2)
+  points3<-rbind(test3,bg3)
+  points4<-rbind(test4,bg4)
+
+  threshold.n<-1
+  tss.calc(points1,1,1)
+  a<-aggregate(pts$pr, list(pts$tss), FUN=mean)
+  tss_threshold1<-a$x [[which(a$Group.1==max(a$Group.1))]]
+  tss1<-max(a$Group.1)
+  threshold.n<-1
+  tss.calc(points2,1,2)
+  a<-aggregate(pts$pr, list(pts$tss), FUN=mean)
+  tss_threshold2<-a$x [[which(a$Group.1==max(a$Group.1))]]
+  tss2<-max(a$Group.1)
+  threshold.n<-1
+  tss.calc(points3,1,3)
+  a<-aggregate(pts$pr, list(pts$tss), FUN=mean)
+  tss_threshold3<-a$x [[which(a$Group.1==max(a$Group.1))]]
+  tss3<-max(a$Group.1)
+  threshold.n<-1
+  tss.calc(points4,1,4)
+  a<-aggregate(pts$pr, list(pts$tss), FUN=mean)
+  tss_threshold4<-a$x [[which(a$Group.1==max(a$Group.1))]]
+  tss4<-max(a$Group.1)
+
+  mod.tss$tss[n.mod]<<-mean(c(tss1,tss2,tss3,tss4))
+  mod.tss$tss.sd[n.mod]<<-sd(c(tss1,tss2,tss3,tss4))
+  mod.tss$threshold[n.mod]<<-mean(c(tss_threshold1,tss_threshold2,tss_threshold3,tss_threshold4))
+  n.mod<-n.mod+1
+  if (n.mod<=tot.mod) all.tss(grp,grp_bg,n.mod,tot.mod)
+}
+
+##AUC variation
+weighted.var<-wtd.var(c(enmeval_results@models[[1]]@results[5],enmeval_results@models[[2]]@results[5],
+                          enmeval_results@models[[3]]@results[5],enmeval_results@models[[4]]@results[5],
+                          enmeval_results@models[[5]]@results[5],enmeval_results@models[[6]]@results[5],
+                          enmeval_results@models[[7]]@results[5],enmeval_results@models[[8]]@results[5],
+                          enmeval_results@models[[9]]@results[5],enmeval_results@models[[10]]@results[5],
+                          enmeval_results@models[[11]]@results[5],enmeval_results@models[[12]]@results[5],
+                          enmeval_results@models[[13]]@results[5],enmeval_results@models[[14]]@results[5],
+                          enmeval_results@models[[15]]@results[5],enmeval_results@models[[16]]@results[5],
+                          enmeval_results@models[[17]]@results[5],enmeval_results@models[[18]]@results[5],
+                          enmeval_results@models[[19]]@results[5],enmeval_results@models[[20]]@results[5],
+                          enmeval_results@models[[21]]@results[5],enmeval_results@models[[22]]@results[5],
+                          enmeval_results@models[[23]]@results[5],enmeval_results@models[[24]]@results[5]),mod.tss$tss)
+
+weighted.vals$value[2] <- sqrt(weighted.var)
+
+##Weighted means of specified variable
+var.mean<-function(var.num){
+  weighted.mean(c(enmeval_results@models[[1]]@results[var.num],enmeval_results@models[[2]]@results[var.num],
+                  enmeval_results@models[[3]]@results[var.num],enmeval_results@models[[4]]@results[var.num],
+                  enmeval_results@models[[5]]@results[var.num],enmeval_results@models[[6]]@results[var.num],
+                  enmeval_results@models[[7]]@results[var.num],enmeval_results@models[[8]]@results[var.num],
+                  enmeval_results@models[[9]]@results[var.num],enmeval_results@models[[10]]@results[var.num],
+                  enmeval_results@models[[11]]@results[var.num],enmeval_results@models[[12]]@results[var.num],
+                  enmeval_results@models[[13]]@results[var.num],enmeval_results@models[[14]]@results[var.num],
+                  enmeval_results@models[[15]]@results[var.num],enmeval_results@models[[16]]@results[var.num],
+                  enmeval_results@models[[17]]@results[var.num],enmeval_results@models[[18]]@results[var.num],
+                  enmeval_results@models[[19]]@results[var.num],enmeval_results@models[[20]]@results[var.num],
+                  enmeval_results@models[[21]]@results[var.num],enmeval_results@models[[22]]@results[var.num],
+                  enmeval_results@models[[23]]@results[var.num],enmeval_results@models[[24]]@results[var.num]),mod.tss$tss)
+}
+
+##Weighted statistics
+mod.ave<-raster::weighted.mean(enmeval_results@predictions,mod.tss$tss)
+tss.mean<-weighted.mean(mod.tss$tss,mod.tss$tss)
+tss.sd<-weighted.mean(mod.tss$tss.sd,mod.tss$tss)
+tss.thresh<-weighted.mean(mod.tss$threshold,mod.tss$tss)
+
+weighted.vals$value[1]<-var.mean(5)
+weighted.vals$value[2]<-sqrt(weighted.var)
+weighted.vals$value[3]<-var.mean(7)
+weighted.vals$value[4]<-var.mean(8)
+weighted.vals$value[5]<-var.mean(9)
+weighted.vals$value[6]<-var.mean(10)
+weighted.vals$value[7]<-var.mean(11)
+weighted.vals$value[8]<-var.mean(12)
+weighted.vals$value[9]<-var.mean(13)
+weighted.vals$value[10]<-var.mean(14)
+weighted.vals$value[11]<-var.mean(15)
+weighted.vals$value[12]<-var.mean(16)
+weighted.vals$value[13]<-var.mean(17)
+weighted.vals$value[14]<-var.mean(18)
+weighted.vals$value[15]<-var.mean(19)
+weighted.vals$value[16]<-var.mean(20)
+weighted.vals$value[17]<-var.mean(21)
+weighted.vals$value[18]<-var.mean(22)
+weighted.vals$value[19]<-var.mean(23)
+weighted.vals$value[20]<-var.mean(24)
+weighted.vals$value[21]<-var.mean(25)
+weighted.vals$value[22]<-var.mean(26)
+weighted.vals$value[23]<-var.mean(27)
+weighted.vals$value[24]<-var.mean(28)
+weighted.vals$value[25]<-var.mean(29)
+weighted.vals$value[26]<-var.mean(30)
+weighted.vals$value[27]<-var.mean(31)
+weighted.vals$value[28]<-var.mean(32)
+weighted.vals$value[29]<-var.mean(33)
+weighted.vals$value[30]<-var.mean(34)
+weighted.vals$value[31]<-var.mean(35)
+weighted.vals$value[32]<-var.mean(36)
+weighted.vals$value[33]<-var.mean(37)
+weighted.vals$value[34]<-var.mean(38)
+weighted.vals$value[35]<-var.mean(39)
+weighted.vals$value[36]<-var.mean(40)
+weighted.vals$value[37]<-var.mean(41)
+weighted.vals$value[38]<-var.mean(42)
+weighted.vals$value[39]<-var.mean(43)
+weighted.vals$value[40]<-var.mean(44)
+weighted.vals$value[41]<-var.mean(45)
+weighted.vals$value[42]<-var.mean(46)
+weighted.vals$value[43]<-var.mean(47)
+weighted.vals$value[44]<-var.mean(48)
+weighted.vals$value[45]<-var.mean(49)
+weighted.vals$value[46]<-var.mean(50)
+weighted.vals$value[47]<-var.mean(51)
+weighted.vals$value[48]<-var.mean(52)
+weighted.vals$value[49]<-var.mean(53)
+weighted.vals$value[50]<-var.mean(54)
+
+##Function to create projected average raster for given scenario 
+projected.avg<-function(scenario){
+  env1<-env.stack(scenario)
+  predict1<-predict(enmeval_results@models[[1]],env1)
+  predict2<-predict(enmeval_results@models[[2]],env1)
+  predict3<-predict(enmeval_results@models[[3]],env1)
+  predict4<-predict(enmeval_results@models[[4]],env1)
+  predict5<-predict(enmeval_results@models[[5]],env1)
+  predict6<-predict(enmeval_results@models[[6]],env1)
+  predict7<-predict(enmeval_results@models[[7]],env1)
+  predict8<-predict(enmeval_results@models[[8]],env1)
+  predict9<-predict(enmeval_results@models[[9]],env1)
+  predict10<-predict(enmeval_results@models[[10]],env1)
+  predict11<-predict(enmeval_results@models[[11]],env1)
+  predict12<-predict(enmeval_results@models[[12]],env1)
+  predict13<-predict(enmeval_results@models[[13]],env1)
+  predict14<-predict(enmeval_results@models[[14]],env1)
+  predict15<-predict(enmeval_results@models[[15]],env1)
+  predict16<-predict(enmeval_results@models[[16]],env1)
+  predict17<-predict(enmeval_results@models[[17]],env1)
+  predict18<-predict(enmeval_results@models[[18]],env1)
+  predict19<-predict(enmeval_results@models[[19]],env1)
+  predict20<-predict(enmeval_results@models[[20]],env1)
+  predict21<-predict(enmeval_results@models[[21]],env1)
+  predict22<-predict(enmeval_results@models[[22]],env1)
+  predict23<-predict(enmeval_results@models[[23]],env1)
+  predict24<-predict(enmeval_results@models[[24]],env1)
+  mod.ave<-raster::weighted.mean(stack(predict1,predict2,predict3,predict4,predict5,predict6,
+                                   predict7,predict8,predict9,predict10,predict11,predict12,
+                                   predict13,predict14,predict15,predict16,predict17,predict18,
+                                   predict19,predict20,predict21,predict22,predict23,predict24),mod.tss$tss)
+  return(mod.ave)
+}
+
+##Function to stack env 
+env.stack<-function(scenario){
+  bio1<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio1.asc")))
+  bio2<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio2.asc")))
+  bio3<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio3.asc")))
+  bio4<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio4.asc")))
+  bio5<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio5.asc")))
+  bio6<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio6.asc")))
+  bio7<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio7.asc")))
+  bio8<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio8.asc")))
+  bio9<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio9.asc")))
+  bio10<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio10.asc")))
+  bio11<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio11.asc")))
+  bio12<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio12.asc")))
+  bio13<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio13.asc")))
+  bio14<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio14.asc")))
+  bio15<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio15.asc")))
+  bio16<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio16.asc")))
+  bio17<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio17.asc")))
+  bio18<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio18.asc")))
+  bio19<-raster(c(paste0("C:/climate/ascii/sk/",scenario,"/bio19.asc")))
+  srad01<-raster("C:/climate/ascii/sk/current/srad01.asc")
+  srad02<-raster("C:/climate/ascii/sk/current/srad02.asc")
+  srad03<-raster("C:/climate/ascii/sk/current/srad03.asc")
+  srad04<-raster("C:/climate/ascii/sk/current/srad04.asc")
+  srad05<-raster("C:/climate/ascii/sk/current/srad05.asc")
+  srad06<-raster("C:/climate/ascii/sk/current/srad06.asc")
+  srad07<-raster("C:/climate/ascii/sk/current/srad07.asc")
+  srad08<-raster("C:/climate/ascii/sk/current/srad08.asc")
+  srad09<-raster("C:/climate/ascii/sk/current/srad09.asc")
+  srad10<-raster("C:/climate/ascii/sk/current/srad10.asc")
+  srad11<-raster("C:/climate/ascii/sk/current/srad11.asc")
+  srad12<-raster("C:/climate/ascii/sk/current/srad12.asc")
+  elev<-raster("C:/climate/ascii/sk/current/elev.asc")
+  greenness_foc<-raster("C:/climate/ascii/sk/current/greenness_foc.asc")
+  landcover<-raster("C:/climate/ascii/sk/current/landcover.asc")
+  landcover_foc<-raster("C:/climate/ascii/sk/current/landcover_foc.asc")
+  river_coastdist<-raster("C:/climate/ascii/sk/current/river_coastdist.asc")
+  riverdist<-raster("C:/climate/ascii/sk/current/riverdist.asc")
+  rugged<-raster("C:/climate/ascii/sk/current/rugged.asc")
+  slope<-raster("C:/climate/ascii/sk/current/slope.asc")
+  topowetnessindex<-raster("C:/climate/ascii/sk/current/topowetnessindex.asc")
+  topowetnessindex2<-raster("C:/climate/ascii/sk/current/topowetnessindex2.asc")
+  waterdist<-raster("C:/climate/ascii/sk/current/waterdist.asc")
+  env1<-stack(bio1,bio2,bio3,bio4,bio5,bio6,bio7,bio8,bio9,bio10,bio11,bio12,bio13,bio14,bio15,bio16,bio17,bio18,bio19,srad01,srad02,srad03,srad04,srad05,srad06,srad07,srad08,srad09,srad10,srad11,srad12,elev,greenness_foc,landcover,landcover_foc,river_coastdist,riverdist,rugged,slope,topowetnessindex,topowetnessindex2,waterdist)
+  rm(bio1,bio2,bio3,bio4,bio5,bio6,bio7,bio8,bio9,bio10,bio11,bio12,bio13,bio14,bio15,bio16,bio17,bio18,bio19,srad01,srad02,srad03,srad04,srad05,srad06,srad07,srad08,srad09,srad10,srad11,srad12,elev,greenness_foc,landcover,landcover_foc,river_coastdist,riverdist,rugged,slope,topowetnessindex,topowetnessindex2,waterdist)
+  return(env1)
+}
+
+#ssp 126
+cnrm.cm6.1.ssp126.2021.2040<-projected.avg("cnrm-cm6-1/ssp126/yr2021-2040")
+cnrm.cm6.1.ssp126.2041.2060<-projected.avg("cnrm-cm6-1/ssp126/yr2041-2060")
+cnrm.cm6.1.ssp126.2061.2080<-projected.avg("cnrm-cm6-1/ssp126/yr2061-2080")
+cnrm.cm6.1.ssp126.2081.2100<-projected.avg("cnrm-cm6-1/ssp126/yr2081-2100")
+
+#ssp 245
+cnrm.cm6.1.ssp245.2021.2040<-projected.avg("cnrm-cm6-1/ssp245/yr2021-2040")
+cnrm.cm6.1.ssp245.2041.2060<-projected.avg("cnrm-cm6-1/ssp245/yr2041-2060")
+cnrm.cm6.1.ssp245.2061.2080<-projected.avg("cnrm-cm6-1/ssp245/yr2061-2080")
+cnrm.cm6.1.ssp245.2081.2100<-projected.avg("cnrm-cm6-1/ssp245/yr2081-2100")
+
+#ssp 370
+cnrm.cm6.1.ssp370.2021.2040<-projected.avg("cnrm-cm6-1/ssp370/yr2021-2040")
+cnrm.cm6.1.ssp370.2041.2060<-projected.avg("cnrm-cm6-1/ssp370/yr2041-2060")
+cnrm.cm6.1.ssp370.2061.2080<-projected.avg("cnrm-cm6-1/ssp370/yr2061-2080")
+cnrm.cm6.1.ssp370.2081.2100<-projected.avg("cnrm-cm6-1/ssp370/yr2081-2100")
+
+#ssp 585
+cnrm.cm6.1.ssp585.2021.2040<-projected.avg("cnrm-cm6-1/ssp585/yr2021-2040")
+cnrm.cm6.1.ssp585.2041.2060<-projected.avg("cnrm-cm6-1/ssp585/yr2041-2060")
+cnrm.cm6.1.ssp585.2061.2080<-projected.avg("cnrm-cm6-1/ssp585/yr2061-2080")
+cnrm.cm6.1.ssp585.2081.2100<-projected.avg("cnrm-cm6-1/ssp585/yr2081-2100")
+
+
+#ssp 126
+miroc6.ssp126.2021.2040<-projected.avg("miroc6/ssp126/yr2021-2040")
+miroc6.ssp126.2041.2060<-projected.avg("miroc6/ssp126/yr2041-2060")
+miroc6.ssp126.2061.2080<-projected.avg("miroc6/ssp126/yr2061-2080")
+miroc6.ssp126.2081.2100<-projected.avg("miroc6/ssp126/yr2081-2100")
+
+#ssp 245
+miroc6.ssp245.2021.2040<-projected.avg("miroc6/ssp245/yr2021-2040")
+miroc6.ssp245.2041.2060<-projected.avg("miroc6/ssp245/yr2041-2060")
+miroc6.ssp245.2061.2080<-projected.avg("miroc6/ssp245/yr2061-2080")
+miroc6.ssp245.2081.2100<-projected.avg("miroc6/ssp245/yr2081-2100")
+
+#ssp 370
+miroc6.ssp370.2021.2040<-projected.avg("miroc6/ssp370/yr2021-2040")
+miroc6.ssp370.2041.2060<-projected.avg("miroc6/ssp370/yr2041-2060")
+miroc6.ssp370.2061.2080<-projected.avg("miroc6/ssp370/yr2061-2080")
+miroc6.ssp370.2081.2100<-projected.avg("miroc6/ssp370/yr2081-2100")
+
+#ssp 585
+miroc6.ssp585.2021.2040<-projected.avg("miroc6/ssp585/yr2021-2040")
+miroc6.ssp585.2041.2060<-projected.avg("miroc6/ssp585/yr2041-2060")
+miroc6.ssp585.2061.2080<-projected.avg("miroc6/ssp585/yr2061-2080")
+miroc6.ssp585.2081.2100<-projected.avg("miroc6/ssp585/yr2081-2100")
+
+
+
+#ssp 126
+writeRaster(cnrm.cm6.1.ssp126.2021.2040,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp126/yr2021-2040/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp126.2041.2060,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp126/yr2041-2060/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp126.2061.2080,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp126/yr2061-2080/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp126.2081.2100,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp126/yr2081-2100/crocodylus_moreletii.tif")
+
+#ssp 245
+writeRaster(cnrm.cm6.1.ssp245.2021.2040,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp245/yr2021-2040/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp245.2041.2060,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp245/yr2041-2060/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp245.2061.2080,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp245/yr2061-2080/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp245.2081.2100,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp245/yr2081-2100/crocodylus_moreletii.tif")
+
+#ssp 370
+writeRaster(cnrm.cm6.1.ssp370.2021.2040,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp370/yr2021-2040/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp370.2041.2060,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp370/yr2041-2060/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp370.2061.2080,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp370/yr2061-2080/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp370.2081.2100,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp370/yr2081-2100/crocodylus_moreletii.tif")
+
+#ssp 585
+writeRaster(cnrm.cm6.1.ssp585.2021.2040,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp585/yr2021-2040/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp585.2041.2060,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp585/yr2041-2060/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp585.2061.2080,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp585/yr2061-2080/crocodylus_moreletii.tif")
+writeRaster(cnrm.cm6.1.ssp585.2081.2100,"D:/Dropbox/UofA/gators/enmeval/cnrm-cm6-1/ssp585/yr2081-2100/crocodylus_moreletii.tif")
+
+
+#ssp 126
+writeRaster(miroc6.ssp126.2021.2040,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp126/yr2021-2040/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp126.2041.2060,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp126/yr2041-2060/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp126.2061.2080,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp126/yr2061-2080/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp126.2081.2100,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp126/yr2081-2100/crocodylus_moreletii.tif")
+
+#ssp 245
+writeRaster(miroc6.ssp245.2021.2040,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp245/yr2021-2040/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp245.2041.2060,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp245/yr2041-2060/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp245.2061.2080,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp245/yr2061-2080/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp245.2081.2100,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp245/yr2081-2100/crocodylus_moreletii.tif")
+
+#ssp 370
+writeRaster(miroc6.ssp370.2021.2040,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp370/yr2021-2040/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp370.2041.2060,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp370/yr2041-2060/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp370.2061.2080,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp370/yr2061-2080/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp370.2081.2100,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp370/yr2081-2100/crocodylus_moreletii.tif")
+
+#ssp 585
+writeRaster(miroc6.ssp585.2021.2040,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp585/yr2021-2040/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp585.2041.2060,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp585/yr2041-2060/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp585.2061.2080,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp585/yr2061-2080/crocodylus_moreletii.tif")
+writeRaster(miroc6.ssp585.2081.2100,"D:/Dropbox/UofA/gators/enmeval/miroc6/ssp585/yr2081-2100/crocodylus_moreletii.tif")
