@@ -1,0 +1,110 @@
+##This code takes enmeval results and weights each model by tss, then calculates model fit stats and variable importance averages
+
+##Separating occurrence and background points by checkerboard2 grouping
+grp<-cbind(enmeval_results@occs,enmeval_results@occs.grp)
+grp_bg<-cbind(enmeval_results@bg,enmeval_results@bg.grp)
+
+##pts is a table of all occurrence and background values to be used as threshold values
+pts<-rbind(enmeval_results@occs,enmeval_results@bg)
+pts<-data.frame(long=pts$long,lat=pts$lat)
+
+##make the table for model tss values
+mod.tss<-data.frame(model=1:tot.mod)
+
+##Function for calculating true skill statistic 
+tss.calc<-function(pts,threshold.n,nrep){
+  threshold<-pts$pr[[threshold.n]]
+  t0<-base::nrow(test1[test1$pr<threshold, ])
+  t1<-base::nrow(test1[test1$pr>threshold, ])
+  bg.0<-base::nrow(bg1[bg1$pr<threshold, ])
+  bg.1<-base::nrow(bg1[bg1$pr>threshold, ])
+  sensitivity<-t1/(t1+t0)
+  specificity<-bg.0/(bg.1+bg.0)
+  tss<-sensitivity+specificity-1
+  pts$tss[[threshold.n]]<-tss
+  pts$tss<-as.numeric(pts$tss)
+  max_tss<-max(pts$tss)
+  tss.values$tss[nrep]<<-max_tss
+  threshold.n<-threshold.n+1
+  if (threshold.n<=nrow(pts)) tss.calc(pts,threshold.n,nrep)
+  else pts<<-pts
+}
+
+##Loops tss calculation for all models, picks the best tss and threshold value for each and spits them out in the table mod.tss
+all.tss<-function(grp,grp_bg,n.mod,tot.mod){
+  occs1<-subset(grp,`enmeval_results@occs.grp`==1)
+  test1<-data.frame("long"=occs1$long,"lat"=occs1$lat)
+  test_pr<-raster::extract(enmeval_results@predictions[[n.mod]],test1)
+  test1<-cbind(test1,test_pr)
+  test1<-data.frame(long=test1$long,lat=test1$lat,pr=test1$test_pr)
+  bg1<-subset(grp_bg,`enmeval_results@bg.grp`==1)
+  bg1<-data.frame("long"=bg1$long,"lat"=bg1$lat)
+  bg_pr<-raster::extract(enmeval_results@predictions[[n.mod]],bg1)
+  bg1<-cbind(bg1,bg_pr)
+  bg1<-data.frame(long=bg1$long,lat=bg1$lat,pr=bg1$bg_pr)
+
+  occs2<-subset(grp,`enmeval_results@occs.grp`==2)
+  test2<-data.frame("long"=occs2$long,"lat"=occs2$lat)
+  test_pr<-raster::extract(enmeval_results@predictions[[n.mod]],test2)
+  test2<-cbind(test2,test_pr)
+  test2<-data.frame(long=test2$long,lat=test2$lat,pr=test2$test_pr)
+  bg2<-subset(grp_bg,`enmeval_results@bg.grp`==2)
+  bg2<-data.frame("long"=bg2$long,"lat"=bg2$lat)
+  bg_pr<-raster::extract(enmeval_results@predictions[[n.mod]],bg2)
+  bg2<-cbind(bg2,bg_pr)
+  bg2<-data.frame(long=bg2$long,lat=bg2$lat,pr=bg2$bg_pr)
+
+  occs3<-subset(grp,`enmeval_results@occs.grp`==3)
+  test3<-data.frame("long"=occs3$long,"lat"=occs3$lat)
+  test_pr<-raster::extract(enmeval_results@predictions[[n.mod]],test3)
+  test3<-cbind(test3,test_pr)
+  test3<-data.frame(long=test3$long,lat=test3$lat,pr=test3$test_pr)
+  bg3<-subset(grp_bg,`enmeval_results@bg.grp`==3)
+  bg3<-data.frame("long"=bg3$long,"lat"=bg3$lat)
+  bg_pr<-raster::extract(enmeval_results@predictions[[n.mod]],bg3)
+  bg3<-cbind(bg3,bg_pr)
+  bg3<-data.frame(long=bg3$long,lat=bg3$lat,pr=bg3$bg_pr)
+
+  occs4<-subset(grp,`enmeval_results@occs.grp`==4)
+  test4<-data.frame("long"=occs4$long,"lat"=occs4$lat)
+  test_pr<-raster::extract(enmeval_results@predictions[[n.mod]],test4)
+  test4<-cbind(test4,test_pr)
+  test4<-data.frame(long=test4$long,lat=test4$lat,pr=test4$test_pr)
+  bg4<-subset(grp_bg,`enmeval_results@bg.grp`==4)
+  bg4<-data.frame("long"=bg4$long,"lat"=bg4$lat)
+  bg_pr<-raster::extract(enmeval_results@predictions[[n.mod]],bg4)
+  bg4<-cbind(bg4,bg_pr)
+  bg4<-data.frame(long=bg4$long,lat=bg4$lat,pr=bg4$bg_pr)
+
+  points1<-rbind(test1,bg1)
+  points2<-rbind(test2,bg2)
+  points3<-rbind(test3,bg3)
+  points4<-rbind(test4,bg4)
+
+  threshold.n<-1
+  tss.calc(points1,1,1)
+  a<-aggregate(pts$pr, list(pts$tss), FUN=mean)
+  tss_threshold1<-a$x [[which(a$Group.1==max(a$Group.1))]]
+  tss1<-max(a$Group.1)
+  threshold.n<-1
+  tss.calc(points2,1,2)
+  a<-aggregate(pts$pr, list(pts$tss), FUN=mean)
+  tss_threshold2<-a$x [[which(a$Group.1==max(a$Group.1))]]
+  tss2<-max(a$Group.1)
+  threshold.n<-1
+  tss.calc(points3,1,3)
+  a<-aggregate(pts$pr, list(pts$tss), FUN=mean)
+  tss_threshold3<-a$x [[which(a$Group.1==max(a$Group.1))]]
+  tss3<-max(a$Group.1)
+  threshold.n<-1
+  tss.calc(points4,1,4)
+  a<-aggregate(pts$pr, list(pts$tss), FUN=mean)
+  tss_threshold4<-a$x [[which(a$Group.1==max(a$Group.1))]]
+  tss4<-max(a$Group.1)
+
+  mod.tss$tss[n.mod]<<-mean(c(tss1,tss2,tss3,tss4))
+  mod.tss$tss.sd[n.mod]<<-sd(c(tss1,tss2,tss3,tss4))
+  mod.tss$threshold[n.mod]<<-mean(c(tss_threshold1,tss_threshold2,tss_threshold3,tss_threshold4))
+  n.mod<-n.mod+1
+  if (n.mod<=tot.mod) all.tss(grp,grp_bg,n.mod,tot.mod)
+}
