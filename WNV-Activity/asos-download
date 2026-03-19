@@ -1,0 +1,103 @@
+library(gstat)
+library(stars)
+library(sf)
+library(raster)
+library(randomForest)
+library(riem)
+
+##Read and clean weather data
+
+#set dates (always set start date as a Monday, should both be Monday for full week)
+start_date <- "2025-11-17"
+end_date <- "2025-11-22"
+
+#empty asos table
+column_names <- c("station","valid","lon","lat","tmpf","relh","p01i")
+empty_matrix <- matrix(nrow = 0, ncol = length(column_names),
+                       dimnames = list(NULL, column_names))
+asos <- as.data.frame(empty_matrix)
+
+#read station list
+station_list<-riem_stations(network = "AZ_ASOS")$id
+
+#download asos data
+for (station_id in station_list) {
+  dat<-riem_measures(station = station_id,
+                     date_start = start_date,
+                     date_end = end_date,
+                     data = c("tmpf","relh","p01i"),
+                     latlon = TRUE)
+  asos<-rbind(asos,dat)
+}
+
+asos$relh[asos$relh > 200] <- NA
+
+#convert to metric
+asos$tmpc<-(asos$tmpf - 32) * (5/9)
+asos$p01m<-asos$p01i * 25.4
+asos$p01m[asos$p01m > 300] <- 300
+
+#extract year, week, yearweek
+asos$week_num <- strftime(asos$valid, format = "%V")
+asos$year_num <- strftime(asos$valid, format = "%G")  # %G gives ISO year
+asos$yearweek <- paste0(asos$year_num,asos$week_num)
+asos$yearweek <- ifelse(substr(asos$yearweek, 5, 6) == "53",
+                        paste0(as.numeric(substr(asos$yearweek, 1, 4)) + 1, "01"),
+                        asos$yearweek)
+
+
+#get table of YW
+yw_dat<-data.frame(unique(asos$yearweek))
+yw_dat$YW<-yw_dat$unique.asos.yearweek.
+yw_dat$unique.asos.yearweek.<-NULL
+
+#get unique stations and create table for regression kriging
+stations<-unique(asos[,c("station","lon","lat")])
+rownames(stations)<-1:nrow(stations)
+
+#extract elevation
+dem<-raster("dbase/layers/dem.tif")
+names(dem)<-"dem"
+
+station.coord<-data.frame("longitude"=stations$lon,"latitude"=stations$lat)
+stations$dem<-raster::extract(dem,station.coord)
+
+#create separate tables for weather vars
+stations.tavg<-stations
+stations.tmin<-stations
+stations.tmax<-stations
+stations.prec<-stations
+stations.humd<-stations
+
+#calculate weather vars per week
+for (i in 1:nrow(yw_dat)) {
+  new.col.name<-paste0("YW",yw_dat$YW[i])
+  stations.tavg[[new.col.name]]<-NA
+  stations.tmin[[new.col.name]]<-NA
+  stations.tmax[[new.col.name]]<-NA
+  stations.prec[[new.col.name]]<-NA
+  stations.humd[[new.col.name]]<-NA
+  for (j in 1:nrow(stations)) {
+    station.x<-subset(asos,station==stations$station[j])
+    yw.x<-subset(station.x,yearweek==yw_dat$YW[i])
+    st.nm<-stations$Station[j]
+    k<-i+4
+    stations.tavg[j,k]<-mean(as.numeric(na.omit(yw.x$tmpc)))
+    stations.tmin[j,k]<-min(as.numeric(na.omit(yw.x$tmpc)))
+    stations.tmax[j,k]<-max(as.numeric(na.omit(yw.x$tmpc)))
+    stations.prec[j,k]<-sum(as.numeric(na.omit(yw.x$p01m)))
+    stations.humd[j,k]<-mean(as.numeric(na.omit(yw.x$relh)))
+  }
+  stations.tavg[stations.tavg=="NaN"]<-NA
+  stations.tmin[stations.tmin=="NaN"]<-NA
+  stations.tmax[stations.tmax=="NaN"]<-NA
+  stations.prec[stations.prec=="NaN"]<-NA
+  stations.humd[stations.humd=="NaN"]<-NA
+  stations.tmin[stations.tmin=="-Inf"]<-NA
+  stations.tmax[stations.tmax=="-Inf"]<-NA
+  stations.tmin[stations.tmin=="Inf"]<-NA
+  stations.tmax[stations.tmax=="Inf"]<-NA
+}
+
+#go to regression_kriging
+
