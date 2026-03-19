@@ -1,0 +1,247 @@
+##Do regression kriging with elevation
+#read in raster as stars
+dem<-read_stars("dbase/layers/dem.tif")
+names(dem)<-"dem"
+dem_full <- st_as_stars(dem)
+dem_spatial <- as(dem_full, "Spatial")
+
+for (i in 5:ncol(stations.tavg)) {
+  #get only needed columns for reg krig (need to change 5 to i in for loop)
+  stations.tavg.x<-na.omit(stations.tavg[,c(2:4,i)])
+
+  #convert to spatial object
+  tavg.sf <- st_as_sf(stations.tavg.x,
+                      coords = c("lon", "lat"),
+                      crs = 4326)
+
+  #fit linear model
+  fit1 <- lm(tavg.sf[[2]] ~ dem, data = tavg.sf)
+
+  ##Add the residuals to the sf data object as a variable
+  tavg.sf$resid <- residuals(fit1)
+
+  ##Turn the residuals into a variogram
+  resid.var <- variogram(resid ~ 1, data = tavg.sf, width = 0.5)
+
+  resid.vgm <- vgm(psill = 8,
+                   model = "Exp",
+                   range = 1,
+                   nugget = 0.5)
+
+  ##Fit the model using the variogram and the model created by hand
+  resid.vgm2 <- fit.variogram(resid.var, resid.vgm)
+
+
+  ##Note:
+  ## Note that as these are residuals, the mean is assumed known (=0), so we use simple kriging for the interpolation. The parameter beta is used to set the value of the mean.
+  resid.sk = krige(resid ~ 1,
+                   locations = tavg.sf,
+                   newdata = dem_full,
+                   model = resid.vgm2,
+                   nmax = 20,
+                   nmin = 8,
+                   beta = 0)
+
+  ##Store the linear model prediction in the DEM object
+  dem$tavg.lm <- predict(fit1, dem)
+  ##Add interpolated residuals to these values
+  dem$tavg.rk <- dem$tavg.lm + resid.sk$var1.pred
+
+  #save to database (have to paste actual yw name)
+  write_stars(dem["tavg.rk"],paste0("dbase/weather/tavg",substr(colnames(tavg.sf[,2]), 3, 8)[1],".tif"),overwrite=TRUE)
+}
+
+for (i in 5:ncol(stations.tmin)) {
+  #get only needed columns for reg krig (need to change 5 to i in for loop)
+  stations.tmin.x<-na.omit(stations.tmin[,c(2:4,i)])
+
+  #convert to spatial object
+  tmin.sf <- st_as_sf(stations.tmin.x,
+                      coords = c("lon", "lat"),
+                      crs = 4326)
+
+  #fit linear model
+  fit1 <- lm(tmin.sf[[2]] ~ dem, data = tmin.sf)
+
+  ##Add the residuals to the sf data object as a variable
+  tmin.sf$resid <- residuals(fit1)
+
+  ##Turn the residuals into a variogram
+  resid.var <- variogram(resid ~ 1, data = tmin.sf, width = 0.5)
+
+  resid.vgm <- vgm(psill = 8,
+                   model = "Exp",
+                   range = 1,
+                   nugget = 0.5)
+
+  ##Fit the model using the variogram and the model created by hand
+  resid.vgm2 <- fit.variogram(resid.var, resid.vgm)
+
+
+  ##Note:
+  ## Note that as these are residuals, the mean is assumed known (=0), so we use simple kriging for the interpolation. The parameter beta is used to set the value of the mean.
+  resid.sk = krige(resid ~ 1,
+                   locations = tmin.sf,
+                   newdata = dem_full,
+                   model = resid.vgm2,
+                   nmax = 20,
+                   nmin = 8,
+                   beta = 0)
+
+  ##Store the linear model prediction in the DEM object
+  dem$tmin.lm <- predict(fit1, dem)
+  ##Add interpolated residuals to these values
+  dem$tmin.rk <- dem$tmin.lm + resid.sk$var1.pred
+
+  #save to database (have to paste actual yw name)
+  write_stars(dem["tmin.rk"],paste0("dbase/weather/tmin",substr(colnames(tmin.sf[,2]), 3, 8)[1],".tif"))
+}
+
+for (i in 5:ncol(stations.tmax)) {
+  #get only needed columns for reg krig (need to change 5 to i in for loop)
+  stations.tmax.x<-na.omit(stations.tmax[,c(2:4,i)])
+
+  #convert to spatial object
+  tmax.sf <- st_as_sf(stations.tmax.x,
+                      coords = c("lon", "lat"),
+                      crs = 4326)
+
+  #fit linear model
+  fit1 <- lm(tmax.sf[[2]] ~ dem, data = tmax.sf)
+
+  ##Add the residuals to the sf data object as a variable
+  tmax.sf$resid <- residuals(fit1)
+
+  ##Turn the residuals into a variogram
+  resid.var <- variogram(resid ~ 1, data = tmax.sf, width = 0.5)
+
+  resid.vgm <- vgm(psill = 8,
+                   model = "Exp",
+                   range = 1,
+                   nugget = 0.5)
+
+  ##Fit the model using the variogram and the model created by hand
+  resid.vgm2 <- fit.variogram(resid.var, resid.vgm)
+
+
+  ##Note:
+  ## Note that as these are residuals, the mean is assumed known (=0), so we use simple kriging for the interpolation. The parameter beta is used to set the value of the mean.
+  resid.sk = krige(resid ~ 1,
+                   locations = tmax.sf,
+                   newdata = dem_full,
+                   model = resid.vgm2,
+                   nmax = 20,
+                   nmin = 8,
+                   beta = 0)
+
+  ##Store the linear model prediction in the DEM object
+  dem$tmax.lm <- predict(fit1, dem)
+  ##Add interpolated residuals to these values
+  dem$tmax.rk <- dem$tmax.lm + resid.sk$var1.pred
+
+  #save to database (have to paste actual yw name)
+  write_stars(dem["tmax.rk"],paste0("dbase/weather/tmax",substr(colnames(tmax.sf[,2]), 3, 8)[1],".tif"))
+}
+
+for (i in 5:ncol(stations.prec)) {
+  #get only needed columns for reg krig (need to change 5 to i in for loop)
+  stations.prec.x<-na.omit(stations.prec[,c(2:4,i)])
+
+  #convert to spatial object
+  prec.sf <- st_as_sf(stations.prec.x,
+                      coords = c("lon", "lat"),
+                      crs = 4326)
+
+  #fit linear model
+  fit1 <- lm(prec.sf[[2]] ~ dem, data = prec.sf)
+
+  ##Add the residuals to the sf data object as a variable
+  prec.sf$resid <- residuals(fit1)
+
+  ##Turn the residuals into a variogram
+  resid.var <- variogram(resid ~ 1, data = prec.sf, width = 3)
+
+  # Calculate variance of precipitation values
+  precip_var <- var(prec.sf[[2]], na.rm = TRUE)
+
+  # Adjust psill based on variance
+  adaptive_psill <- max(0.5, min(3.0, precip_var * 0.1))
+
+  resid.vgm <- vgm(psill = adaptive_psill,
+                   model = "Exp",
+                   range = 50,
+                   nugget = 0.3)
+
+  ##Fit the model using the variogram and the model created by hand
+  resid.vgm2 <- fit.variogram(resid.var, resid.vgm)
+
+
+  ##Note:
+  ## Note that as these are residuals, the mean is assumed known (=0), so we use simple kriging for the interpolation. The parameter beta is used to set the value of the mean.
+  resid.sk = krige(resid ~ 1,
+                   locations = prec.sf,
+                   newdata = dem_full,
+                   model = resid.vgm2,
+                   nmax = 30,
+                   nmin = 12,
+                   beta = 0)
+
+  ##Store the linear model prediction in the DEM object
+  dem$prec.lm <- predict(fit1, dem)
+  ##Add interpolated residuals to these values
+  dem$prec.rk <- dem$prec.lm + resid.sk$var1.pred
+
+  #save to database
+  if (all(is.na(dem$prec.rk[!is.na(dem$dem)]))) dem$prec.rk[!is.na(dem$dem)] <- 0
+  dem["prec.rk"][dem["prec.rk"] > 300] <- 300
+  dem["prec.rk"][dem["prec.rk"] < 0] <- 0
+  write_stars(dem["prec.rk"],paste0("dbase/weather/prec",substr(colnames(prec.sf[,2]), 3, 8)[1],".tif"))
+}
+
+for (i in 5:ncol(stations.humd)) {
+  #get only needed columns for reg krig (need to change 5 to i in for loop)
+  stations.humd.x<-na.omit(stations.humd[,c(2:4,i)])
+
+  #convert to spatial object
+  humd.sf <- st_as_sf(stations.humd.x,
+                      coords = c("lon", "lat"),
+                      crs = 4326)
+
+  #fit linear model
+  fit1 <- lm(humd.sf[[2]] ~ dem, data = humd.sf)
+
+  ##Add the residuals to the sf data object as a variable
+  humd.sf$resid <- residuals(fit1)
+
+  ##Turn the residuals into a variogram
+  resid.var <- variogram(resid ~ 1, data = humd.sf, width = 0.7)
+
+  resid.vgm <- vgm(psill = 25,
+                   model = "Sph",
+                   range = 4,
+                   nugget = 2)
+
+  ##Fit the model using the variogram and the model created by hand
+  resid.vgm2 <- fit.variogram(resid.var, resid.vgm)
+
+
+  ##Note:
+  ## Note that as these are residuals, the mean is assumed known (=0), so we use simple kriging for the interpolation. The parameter beta is used to set the value of the mean.
+  resid.sk = krige(resid ~ 1,
+                   locations = humd.sf,
+                   newdata = dem_full,
+                   model = resid.vgm2,
+                   nmax = 18,
+                   nmin = 8,
+                   beta = 0)
+
+  ##Store the linear model prediction in the DEM object
+  dem$humd.lm <- predict(fit1, dem)
+  ##Add interpolated residuals to these values
+  dem$humd.rk <- dem$humd.lm + resid.sk$var1.pred
+
+  dem["humd.rk"][dem["humd.rk"] > 100] <- 100
+  dem["humd.rk"][dem["humd.rk"] < 0] <- 0
+  #save to database (have to paste actual yw name)
+  write_stars(dem["humd.rk"],paste0("dbase/weather/humd",substr(colnames(humd.sf[,2]), 3, 8)[1],".tif"))
+}
